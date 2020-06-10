@@ -1,0 +1,7 @@
+# Pyinstaller build files
+/dist
+/build
+/*.spec
+
+# IDE files
+/.idea
