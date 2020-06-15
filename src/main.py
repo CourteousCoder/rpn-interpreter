@@ -1,5 +1,4 @@
-from reverse_polish_calculator.calculator import Calculator
+from reverse_polish_calculator.rpnlanginterpreter import RpnlangInterpreter as Rpn
+from argparse import ArgumentParser
 
-calc = Calculator()
-
-assert calc.evaluate('1 2 +') == 3
+print(Rpn().evaluate('2 3 * 1 +'))

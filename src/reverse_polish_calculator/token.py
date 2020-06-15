@@ -1,10 +1,12 @@
 from ast import literal_eval
 from enum import Enum, auto
-from re import match, findall
+from re import match
 
 
 class TokenType(Enum):
+    REFERENCE = auto()
     SYMBOL = auto()
+    BLOCK = auto()
     OPERATOR = auto()
     DEC_INT = auto()
     BIN_INT = auto()
@@ -30,16 +32,9 @@ class Token:
         return self._token_type
 
     @classmethod
-    def parse_expression(cls, expression_string, supported_operators):
-        return [cls.parse_token(token, supported_operators) for token in
-                findall(r'\S+', expression_string)]
-
-    @classmethod
-    def parse_token(cls, token, supported_operators):
-        if token in supported_operators:
-            return cls(supported_operators[token], TokenType.OPERATOR)
-        elif '$' in token and match(r'^\$[a-zA-Z0-9_]+$', token):
-            return cls(token, TokenType.SYMBOL)
+    def parse_value_token(cls, token):
+        if match(r'^&?\$[a-zA-Z0-9_]+$', token):
+            return cls(token, TokenType.REFERENCE if cls._is_reference(token) else TokenType.SYMBOL)
         elif '.' in token:
             return cls.parse_float_token(token)
         elif match(r'^-?(0|[1-9][0-9]*)$', token):
@@ -51,10 +46,14 @@ class Token:
         elif match(r'^-?0x[0-9a-fA-F]+$', token):
             return cls(int(token, 16), TokenType.HEX_INT)
         else:
-            raise SyntaxError(f'Token {token} is not a valid symbol name, value, or function.')
+            raise SyntaxError(f'Token {token} is not a valid symbol name, value, or operation.')
+
+    @staticmethod
+    def _is_reference(token):
+        return str(token).startswith('&')
 
     @classmethod
-    def parse_float_token(cls, token):
+    def _parse_float_token(cls, token):
         if match(r'^-?[1-9][0-9]*\.[0-9]+$', token):
             return cls(float(token), TokenType.DEC_FLOAT)
         elif match(r'^-?0o[0-7]+\.[0-7]+$', token):
@@ -71,4 +70,4 @@ class Token:
         yield self.token_type
 
     def __str__(self):
-        return str(tuple(self))
+        return str(self.value)

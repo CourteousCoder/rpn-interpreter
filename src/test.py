@@ -1,5 +1,4 @@
 from reverse_polish_calculator.calculator import Calculator
-
 calc = Calculator()
 assert calc.evaluate('1 2 +') == '3'
 assert calc.evaluate('1 +') == '4'
@@ -12,7 +11,6 @@ assert calc.evaluate('-inf -0xFFFFFFFFFFFFFFFF min') == '-inf'
 
 calc = Calculator(8)
 assert calc.evaluate('-0xA') == '-0o12'
-
 calc = Calculator(scripting=True)
 script = """
 /* Hello darkness my old friend
@@ -29,15 +27,14 @@ script = """
     1 2 *
     I've come to talk with you again
 */
-#define $three 3 #save
-#define $four $three 1 + #save
-#define $kib
-1024 /*comment*/ *
-#save
+&$three 3 =
+&$four { $three 1 + } =
+&$kib
+{ 1024 /*comment*/ * } =
+
 $four $kib 4 swap / $kib
 /**/
 """
 result = calc.evaluate(script)
-calc.evaluate('swap')
+calc.evaluate('2 3 depth -- repeat +')
 print(calc.format_stack())
-

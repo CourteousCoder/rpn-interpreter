@@ -13,4 +13,4 @@ bitstring = "*"
 python_version = "3.8"
 
 [scripts]
-build = "pyinstaller src/reverse_polish_calculator/main.py --onefile --name rpn"
+build = "pyinstaller src/main.py --onefile --name rpn --path"
