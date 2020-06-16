@@ -7,7 +7,7 @@ verify_ssl = true
 pyinstaller = "*"
 
 [packages]
-bitstring = "*"
+tabulate = "*"
 
 [requires]
 python_version = "3.8"

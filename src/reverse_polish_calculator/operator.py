@@ -103,7 +103,7 @@ pure_operations = {
         Operator('pi', 0, lambda: pi, "The ratio of a circle's circumference to its diameter, π"),
         Operator('tau', 0, lambda: tau, "The ratio of a circle's circumference to its radius, τ = 2π"),
         Operator('e', 0, lambda: e, "Euler's constant"),
-        Operator('rand', 0, random, 'A random float in the range {0,1)'),
+        Operator('rand', 0, random, 'A random float in the range [0,1)'),
         Operator('true', 0, lambda: True, 'Boolean TRUE'),
         Operator('false', 0, lambda: False, 'Boolean FALSE'),
         Operator('inf', 0, lambda: float('inf'), 'Positive Infinity'),

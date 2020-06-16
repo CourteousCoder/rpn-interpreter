@@ -1,35 +1,17 @@
 import re
 from typing import List
 
-import bitstring
+from tabulate import tabulate
 
+from .bracketparser import BracketParser
+from .helpers import identity, float_to_bin, float_to_oct, float_to_hex, clamp
 from .operator import Operator, pure_operations
 from .token import Token, TokenType
-from .bracketparser import BracketParser
-
-
-def float_to_bin(x):
-    sign = '-' if x < 0 else ''
-    return sign + bitstring.BitArray(float=abs(x)).bin
-
-
-def float_to_oct(x):
-    sign = '-' if x < 0 else ''
-    return sign + bitstring.BitArray(float=abs(x)).oct
-
-
-def identity(x):
-    return x
-
-
-def clamp(n, smallest, largest):
-    return max(smallest, min(n, largest))
 
 
 class RpnlangInterpreter:
     def __init__(self, display_mode_number_base=10, interactive=False, verbosity=0):
         self._verbosity = verbosity
-        self._show_stack = bool(verbosity)
         self._display_mode_number_base = 0
         self.set_display_mode_number_base(display_mode_number_base)
         self._clear_stack()
@@ -47,11 +29,12 @@ class RpnlangInterpreter:
         options = (2, 8, 10, 16)
         if base not in options:
             options = ', '.join(map(str, options))
-            raise ValueError(f'Unsupported number base: {base}. Please use any one of: {options}.')
+            raise ValueError(f"Value Error: Unsupported number base: '{base}'. Please use any one of: {options}.")
         self._display_mode_number_base = base
 
-    def format_stack(self) -> List[str]:
-        return [self._format_output(item) for item in self._stack]
+    @property
+    def interactive_prompt(self) -> str:
+        return ' '.join([self._format_output(item) for item in self._stack]) + '>'
 
     def evaluate(self, expression: str) -> str:
         """
@@ -85,7 +68,7 @@ class RpnlangInterpreter:
 
     def _compute(self, operation: Operator):
         if len(self._stack) < operation.arity:
-            raise TypeError(f'Not enough arguments to compute: {operation.description}.')
+            raise TypeError(f"Stack Error: Not enough arguments to compute: '{operation.name}'.")
         args = self._pop_many(operation.arity)
         return operation.operate(*args)
 
@@ -96,7 +79,7 @@ class RpnlangInterpreter:
                 expanded_symbol = self._unblock(expanded_symbol)
             self._tokenize(expanded_symbol)
         else:
-            raise RuntimeError(f'Undefined symbol: `{symbol}`.')
+            raise RuntimeError(f"Runtime Error: Undefined symbol: '{symbol}'.")
 
     def _tokenize(self, expression: str) -> List[Token]:
         expression = self._preprocess_comments(expression)
@@ -177,7 +160,7 @@ class RpnlangInterpreter:
             format_float = str
         elif self._display_mode_number_base == 16:
             format_int = hex
-            format_float = float.hex
+            format_float = float_to_hex
 
         data_type = type(stack_item)
         # Truncate '.0' if present.
@@ -231,9 +214,6 @@ class RpnlangInterpreter:
         rotations = n % len(self._stack)
         self._stack = self._stack[rotations:] + self._stack[:rotations]
 
-    def _toggle_display_stack(self):
-        self._show_stack = not self._show_stack
-
     @staticmethod
     def _unblock(value: str) -> str:
         """
@@ -254,12 +234,25 @@ class RpnlangInterpreter:
     def _puts(self):
         def to_unicode(number):
             if type(number) != int or not 0 <= number <= 0x10ffff:
-                raise ValueError('Tried to print non-unicode value from stack')
+                raise ValueError("Value Error: Tried to print non-unicode value '{number}' from stack")
 
         print(''.join(map(to_unicode, self._stack)))
 
     def help(self):
-        pass  # TODO: Implement this
+        command_reference = {}
+        command_reference.update(pure_operations)
+        command_reference.update(self._get_scripting_operations())
+        command_reference.update(self._get_interactive_operations())
+        for category, commands in command_reference.items():
+            command_reference[category] = tabulate(sorted([
+                [command.name, command.arity, command.description]
+                for command in commands
+            ], key=lambda row: row[0]), headers=('Operator', 'Arguments', 'Description'))
+        command_reference = '\n\n'.join([
+            f'{category}:\n{table}'
+            for category, table in command_reference.items()
+        ])
+        print(command_reference)
 
     def _if_else(self, condition, true_block=None, false_block=None):
         expression = ''
@@ -273,15 +266,22 @@ class RpnlangInterpreter:
         expression = ' '.join([self._unblock(block)] * n)
         self._tokenize(expression)
 
+    def _exit(self):
+        self._interactive = False
+
+    @property
+    def interactive(self):
+        return self._interactive
+
     def _get_interactive_operations(self):
         return {
-            'Display Commands': {
+            'Interactive Display Commands': {
                 Operator('dec', 0, lambda: self.set_display_mode_number_base(10), 'Display decimal values'),
                 Operator('bin', 0, lambda: self.set_display_mode_number_base(2), 'Display binary values'),
                 Operator('oct', 0, lambda: self.set_display_mode_number_base(8), 'Display octal values'),
                 Operator('hex', 0, lambda: self.set_display_mode_number_base(16), 'Display hexadecimal values'),
-                Operator('stack', 0, lambda: self._toggle_display_stack, 'Toggle stack display'),
-                Operator('help', 0, self.help, 'Print this help text'),
+                Operator('help', 0, self.help, 'Show this help text'),
+                Operator('exit', 0, self._exit, 'Exit interactive mode')
             },
         }
 
@@ -290,7 +290,7 @@ class RpnlangInterpreter:
             'Memory Manipulation': {
                 Operator('=', 2, self._assign, 'Assignment, assigns a global symbol name to a block or value, '
                                                'symbol name must be passed as a reference, '
-                                               "e.g. '&$kb { 1024 * } ='"),
+                                               "e.g. '{ 1024 * } &$kb ='"),
                 Operator('clr', 0, self._clear_stack, 'Clear the stack'),
                 Operator('cls', 0, self._clear_symbols, 'Clear all defined symbols'),
                 Operator('cla', 0, self._clear_all_memory, 'Clear all defined symbols and the stack'),

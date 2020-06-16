@@ -25,7 +25,7 @@ class BracketParser:
             if self._stack:
                 self._stack.pop()
             else:
-                raise SyntaxError(f'Misplaced `{self.closing}` bracket')
+                raise SyntaxError(f'Syntax Error: Misplaced `{self.closing}` bracket')
         return self
 
     def reset(self):
