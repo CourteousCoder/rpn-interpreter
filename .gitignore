@@ -2,6 +2,6 @@
 /dist
 /build
 /*.spec
-
+__pycache__
 # IDE files
 /.idea
