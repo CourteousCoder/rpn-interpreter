@@ -1,6 +1,16 @@
+from argparse import ArgumentParser, FileType
+from sys import stderr, stdout
+
 from reverse_polish_calculator.rpnlanginterpreter import RpnlangInterpreter as Rpn
-from argparse import ArgumentParser
-from sys import stderr
+
+from signal import signal, SIGINT
+from sys import exit
+
+
+def sigint_handler(signal_received=None, frame=None):
+    # Handle any cleanup here
+    print("SIGINT or CTRL-C detected. Attempting to exit gracefully... You can also type 'exit' to quit.")
+    exit(0)
 
 
 def get_args():
@@ -8,9 +18,15 @@ def get_args():
                             description='Interprets a program written in the stack-based '
                                         'RPN language, given as either: '
                                         'a file, an expression, or via the interactive shell '
-                                        'and outputs the final calculation',
-                            epilog="Run with no arguments to enter the interactive shell, "
-                                   "there too you can enter 'help'")
+                                        'and outputs the final calculation')
+    parser.add_argument('expression',
+                        help='the expression to evaluate. If -f or -i is used, this expression will be evaluated first.'
+                             ' A common use-case for this is to pass arguments to a program given by -f.',
+                        nargs='*',
+                        type=str)
+    parser.add_argument('-H', '--command-help', action='store_true', help="show the help page for commands")
+    parser.add_argument('-v', '--verbosity', help='indicate how many characters to display for stack abbreviations'
+                                                  'this only has an effect in interactive mode', type=int, default=0)
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-d', '--dec', help='output/display values as decimal numbers (default)', default=True,
                        action='store_true')
@@ -18,33 +34,36 @@ def get_args():
     group.add_argument('-x', '--hex', help='output/display values as octal numbers', action='store_true')
     group.add_argument('-b', '--bin', help='output/display values as octal numbers', action='store_true')
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('-H', '--command-help', action='store_true', help="show the help page for commands")
-    group.add_argument('-f', '--file', help='run the specified file as a script', type=str)
-    group.add_argument('-e', '--expression', help='evaluate the specified expression string', type=str)
-    group.add_argument('-v', '--verbosity', help='indicate how many characters to display for stack abbreviations'
-                                                 'this only has an effect in interactive mode', type=int, default=0)
-    return parser.parse_args()
+    group.add_argument('-f', '--file',
+                       help="run the specified file as a script, or read from stdin if a dash '-' is given",
+                       type=FileType('r'))
+    group.add_argument('-i', '--interactive', help='enter the interactive shell after parsing the expression',
+                       action='store_true')
+    args = parser.parse_args()
+    return args
 
 
-def run_interactive(base, verbosity):
-    rpn = Rpn(base, True, verbosity)
-    while rpn.interactive:
+def run_interactive(rpn):
+    while rpn.running:
         try:
-            rpn.evaluate(input(rpn.interactive_prompt))
-        except BaseException as e:
+            expression = input(rpn.interactive_prompt)
+            if expression == chr(3):
+                sigint_handler()
+            rpn.evaluate(expression)
+        except Exception as e:
             print(str(e), file=stderr)
-    return ''
+    return rpn
 
 
 def run(args):
     base = get_base(args)
-    if args.expression:
-        return Rpn(base, False, args.verbosity).evaluate(args.expression)
-    elif args.file:
-        with open(args.file, 'r') as f:
-            return Rpn(base, False, args.verbosity).evaluate(f.read())
-    else:
-        return run_interactive(base, args.verbosity)
+    rpn = Rpn(base, args.verbosity, ' '.join(args.expression))
+    if args.file:
+        f = args.file.read()
+        rpn.evaluate(f)
+    elif args.interactive:
+        run_interactive(rpn)
+    return rpn
 
 
 def get_base(args):
@@ -59,19 +78,22 @@ def get_base(args):
 
 
 def show_help():
-    Rpn(interactive=True).help()
+    Rpn().help()
 
 
 def main():
+    signal(SIGINT, sigint_handler)
     args = get_args()
     if args.command_help:
         show_help()
         return
-    run(args)
+    result = run(args).result
+    print(result, file=stdout)
 
 
 if __name__ == '__main__':
     try:
         main()
     except BaseException as error:
-        print(str(error), file=stderr)
+        stderr.writelines([str(error)])
+        exit(1)

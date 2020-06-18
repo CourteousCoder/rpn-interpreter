@@ -1,5 +1,4 @@
 import re
-from typing import List
 
 from tabulate import tabulate
 
@@ -10,7 +9,7 @@ from .token import Token, TokenType
 
 
 class RpnlangInterpreter:
-    def __init__(self, display_mode_number_base=10, interactive=False, verbosity=0):
+    def __init__(self, display_mode_number_base=10, verbosity=0, expression=None):
         self._verbosity = verbosity
         self._display_mode_number_base = 0
         self.set_display_mode_number_base(display_mode_number_base)
@@ -21,9 +20,14 @@ class RpnlangInterpreter:
         self._operations = {}
         self._include_operation_groups(pure_operations)
         self._include_operation_groups(self._get_scripting_operations())
-        self._interactive = interactive
-        if interactive:
-            self._include_operation_groups(self._get_interactive_operations())
+        self._include_operation_groups(self._get_interactive_operations())
+        self._running = True
+        if expression:
+            self.evaluate(expression)
+
+    @property
+    def running(self):
+        return self._running
 
     def set_display_mode_number_base(self, base):
         options = (2, 8, 10, 16)
@@ -33,10 +37,14 @@ class RpnlangInterpreter:
         self._display_mode_number_base = base
 
     @property
+    def result(self):
+        return self._format_output(self._stack[-1]) if self._stack else ''
+
+    @property
     def interactive_prompt(self) -> str:
         return ' '.join([self._format_output(item) for item in self._stack]) + '>'
 
-    def evaluate(self, expression: str) -> str:
+    def evaluate(self, expression: str):
         """
         Evaluates the given expression_string thus:
 
@@ -46,7 +54,7 @@ class RpnlangInterpreter:
         Operators pop values from the memory stack and push their return values (if any)
 
         :param expression:
-        :return: The top value of the memory stack, formatted as a string.
+        :return: self
         """
         self._tokenize(expression)
         while self._tokens:
@@ -61,7 +69,7 @@ class RpnlangInterpreter:
             else:
                 self._stack.append(contents)
 
-        return self._format_output(self._stack[-1]) if self._stack else ''
+        return self
 
     def _compute(self, operation: Operator):
         if len(self._stack) < operation.arity:
@@ -272,16 +280,12 @@ class RpnlangInterpreter:
         self._tokenize(expression)
 
     def _exit(self):
-        self._interactive = False
+        self._running = False
 
     def _delete(self, reference):
         symbol = reference[1:]
         if symbol in self._symbol_table:
             self._symbol_table.pop(symbol)
-
-    @property
-    def interactive(self):
-        return self._interactive
 
     def _get_interactive_operations(self):
         return {

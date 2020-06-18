@@ -1,0 +1,18 @@
+/* Define the factorial function */
+{
+ /* Compare the top item (as an integer), x, with 0 */
+ floor dup 0 <=
+    /* If it's 0 or smaller, replace x with 1 */
+    { drop 1 }
+    /* If it's 1 or bigger, replace x with the product:  x * (x-1)! */
+    { dup 1 - $fact * }
+ ifelse
+} &$fact =
+
+/* If the stack is empty push a sample value, 3 */
+depth 0 == { 3 }  if
+/* Calculate factorial */
+$fact
+
+/* Top stack item is always returned */
+/* e.g. 3! is 6 */
