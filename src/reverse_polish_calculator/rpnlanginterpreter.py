@@ -58,9 +58,6 @@ class RpnlangInterpreter:
                     self._stack.append(calculated_value)
             elif token_type == TokenType.SYMBOL:
                 self._expand_symbol(contents)
-            elif token_type == TokenType.REFERENCE:
-                # Dereference it
-                self._stack.append(contents[1:])
             else:
                 self._stack.append(contents)
 
@@ -73,15 +70,14 @@ class RpnlangInterpreter:
         return operation.operate(*args)
 
     def _expand_symbol(self, symbol):
-        if symbol in self._symbol_table:
-            expanded_symbol = str(self._symbol_table[symbol])
-            if self._is_block(expanded_symbol):
-                expanded_symbol = self._unblock(expanded_symbol)
-            self._tokenize(expanded_symbol)
-        else:
-            raise RuntimeError(f"Runtime Error: Undefined symbol: '{symbol}'.")
+        if symbol not in self._symbol_table:
+            self._assign('{ }', symbol)
+        expanded_symbol = str(self._symbol_table[symbol])
+        if self._is_block(expanded_symbol):
+            expanded_symbol = self._unblock(expanded_symbol)
+        self._tokenize(expanded_symbol)
 
-    def _tokenize(self, expression: str) -> List[Token]:
+    def _tokenize(self, expression: str):
         expression = self._preprocess_comments(expression)
         bracket_parser = self._bracket_parser
 
@@ -188,6 +184,8 @@ class RpnlangInterpreter:
         return len(self._stack)
 
     def _peek(self, n=1):
+        if len(self._stack) < n:
+            raise ValueError('Stack Error: Not enough values')
         return self._stack[-int(n)]
 
     def _duplicate(self, n=1):
@@ -196,14 +194,15 @@ class RpnlangInterpreter:
         :param n:
         :return:
         """
+        if not self._stack:
+            raise ValueError('stack is empty')
         items = self._stack[-1 - n:]
         self._push(*items)
 
     def _drop(self, n=1):
         self._pop_many(n)
 
-    def _swap(self):
-        a, b = self._pop_many(2)
+    def _swap(self, a, b):
         self._push(b, a)
 
     def _roll_up(self, n):
@@ -228,15 +227,21 @@ class RpnlangInterpreter:
         value = str(value)
         return value.startswith(self._bracket_parser.opening) and value.endswith(self._bracket_parser.closing)
 
-    def _assign(self, symbol, value):
-        self._symbol_table[symbol] = value
+    def _assign(self, value, reference):
+        self._symbol_table[reference[1:]] = value
+
+    def _symbols(self):
+        print(tabulate(sorted([[k, v] for k, v in self._symbol_table.items()], key=lambda row: row[0]),
+                       headers=('Symbol', 'Value')))
 
     def _puts(self):
         def to_unicode(number):
-            if type(number) != int or not 0 <= number <= 0x10ffff:
+            if type(number) != int or not (0 <= number <= 0x10ffff):
                 raise ValueError("Value Error: Tried to print non-unicode value '{number}' from stack")
+            return chr(number)
 
-        print(''.join(map(to_unicode, self._stack)))
+        chars = [to_unicode(val) for val in self._stack]
+        print(''.join(chars))
 
     def help(self):
         command_reference = {}
@@ -269,6 +274,11 @@ class RpnlangInterpreter:
     def _exit(self):
         self._interactive = False
 
+    def _delete(self, reference):
+        symbol = reference[1:]
+        if symbol in self._symbol_table:
+            self._symbol_table.pop(symbol)
+
     @property
     def interactive(self):
         return self._interactive
@@ -280,6 +290,7 @@ class RpnlangInterpreter:
                 Operator('bin', 0, lambda: self.set_display_mode_number_base(2), 'Display binary values'),
                 Operator('oct', 0, lambda: self.set_display_mode_number_base(8), 'Display octal values'),
                 Operator('hex', 0, lambda: self.set_display_mode_number_base(16), 'Display hexadecimal values'),
+                Operator('symbols', 0, self._symbols, 'Display all defined symbols'),
                 Operator('help', 0, self.help, 'Show this help text'),
                 Operator('exit', 0, self._exit, 'Exit interactive mode')
             },
@@ -288,6 +299,7 @@ class RpnlangInterpreter:
     def _get_scripting_operations(self):
         return {
             'Memory Manipulation': {
+                Operator('del', 1, self._delete, "Delete a symbol from memory by name, e.g. '&$deleteMe del'"),
                 Operator('=', 2, self._assign, 'Assignment, assigns a global symbol name to a block or value, '
                                                'symbol name must be passed as a reference, '
                                                "e.g. '{ 1024 * } &$kb ='"),
@@ -300,7 +312,7 @@ class RpnlangInterpreter:
                 Operator('dupn', 1, self._duplicate, 'Duplicate the top n items on the stack, in order'),
                 Operator('drop', 0, self._drop, 'Drop the top item from the stack'),
                 Operator('dropn', 1, self._drop, 'Drop the top n items from the stack'),
-                Operator('swap', 0, self._swap, 'Swap the top 2 items on the top of the stack'),
+                Operator('swap', 2, self._swap, 'Swap the top 2 items on the top of the stack'),
                 Operator('roll', 1, self._roll_up, 'Roll the stack upwards by n'),
                 Operator('rolld', 1, self._roll_down, 'Roll the stack downwards by n'),
                 Operator('reverse', 0, self._stack.reverse, 'Reverse the stack'),
@@ -310,7 +322,7 @@ class RpnlangInterpreter:
             'Control Flow': {
                 Operator('ifelse', 3, self._if_else,
                          'Execute the contents of true_block if condition is true, '
-                         'otherwise push the contents of false_block '
+                         'otherwise execute the contents of false_block '
                          "i.e. '<condition> <true_block> <false_block> ifelse'"),
                 Operator('if', 2, lambda condition, value: self._if_else(condition, true_block=value),
                          'Execute the contents of block if condition is true, otherwise, do nothing,'
@@ -329,10 +341,12 @@ class RpnlangInterpreter:
                          "Multiline comment, ignore everything between"
                          " the first '/*' and the first '*/'"),
                 Operator('{ <expression> }', None, None,
-                         "Block, encapsulates a sequence of operations, values, and/or other blocks"
+                         "Block, encapsulates a sequence of operations, values, and/or other blocks, "
                          "e.g. '{ dup * }'"),
                 Operator('$<symbol name>', None, None, 'Symbol, get the value of an existing symbol, '
-                                                       'must match /[a-zA-Z0-9_]+/'),
-                Operator('&$<symbol name>', None, None, 'Reference, refers to a symbol name'),
+                                                       'If the symbol has not been set'
+                                                       'then it sets it to an empty block,'),
+                Operator('&$<symbol name>', None, None,
+                         'Reference, refers to a symbol name, must match /[a-zA-Z0-9_]+/'),
             },
         }

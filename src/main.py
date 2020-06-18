@@ -4,7 +4,13 @@ from sys import stderr
 
 
 def get_args():
-    parser = ArgumentParser()
+    parser = ArgumentParser(prog='RPN Interpreter',
+                            description='Interprets a program written in the stack-based '
+                                        'RPN language, given as either: '
+                                        'a file, an expression, or via the interactive shell '
+                                        'and outputs the final calculation',
+                            epilog="Run with no arguments to enter the interactive shell, "
+                                   "there too you can enter 'help'")
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-d', '--dec', help='output/display values as decimal numbers (default)', default=True,
                        action='store_true')
@@ -25,8 +31,8 @@ def run_interactive(base, verbosity):
     while rpn.interactive:
         try:
             rpn.evaluate(input(rpn.interactive_prompt))
-        except BaseException as error:
-            print(str(error), file=stderr)
+        except BaseException as e:
+            print(str(e), file=stderr)
     return ''
 
 
@@ -61,8 +67,7 @@ def main():
     if args.command_help:
         show_help()
         return
-    result = run(args)
-    # print(result)
+    run(args)
 
 
 if __name__ == '__main__':
