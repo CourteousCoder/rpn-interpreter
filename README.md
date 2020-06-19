@@ -1,6 +1,14 @@
 # Reverse Polish Notation Programming Language
-What started off as a RPN calculator because a turing-complete stack-based programming language.
+What started off as a RPN calculator because a turing-complete stack-based programming language. 
 
+This was a lot of fun to implement, and I could keep iterating on it indefinitely if I had the time.
+Some of the next points of improvement I would make would be:
+- Code refactor. The `rpnlanginterpreter.py` class is too busy. Maybe I'll make a real lexer and parser.
+- Add support for interactive history via up/down arrow keys
+- Write an interpreter or compiler for RPN in RPN. It's not too different from python bytecode.
+- Add support for block-scoped variables and functions. Currently everything is global
+- Add string support.
+- Allow References as a manipulatable datatype. This might end up resulting in behavior like PHP's variable-variables.
 ## Proof of Turing Completeness
 According to [this article](https://en.wikipedia.org/wiki/General_recursive_function#Definition), in order to prove
  turing completeness, it is sufficient to prove:
