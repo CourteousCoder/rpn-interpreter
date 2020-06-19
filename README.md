@@ -1,5 +1,5 @@
 # Reverse Polish Notation Programming Language
-What started off as a RPN calculator because a turing-complete stack-based programming language. 
+What started off as a RPN calculator became a turing-complete stack-based programming language. 
 
 This was a lot of fun to implement, and I could keep iterating on it indefinitely if I had the time.
 Some of the next points of improvement I would make would be:
@@ -16,7 +16,7 @@ According to [this article](https://en.wikipedia.org/wiki/General_recursive_func
  1. We can define the successor function.
  1. We can define the identity function.
  1. We can compose these functions arbitrarily.
- 
+
 ### Constant function
 Just initialize a variable. For example the zero-function is defined like this:
 ```
